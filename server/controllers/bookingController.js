@@ -61,12 +61,53 @@ export const getSlotAvailability = async (req, res) => {
   }
 };
 
+// @desc    Get user's bookings
+// @route   GET /api/bookings/my-bookings
+// @access  Private
+export const getMyBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.find({ user: req.user._id })
+      .populate('sport', 'name')
+      .sort({ date: -1, startTime: -1 });
+    
+    res.json(bookings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Get booking by ID
+// @route   GET /api/bookings/:id
+// @access  Private
+export const getBookingById = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('sport', 'name')
+      .populate('user', 'name email');
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if user owns the booking or is admin
+    if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to view this booking' });
+    }
+
+    res.json(booking);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
 // @desc    Create a new booking
 // @route   POST /api/bookings
 // @access  Private
 export const createBooking = async (req, res) => {
   try {
-    const { sportId, date, startTime, endTime } = req.body;
+    const { sportId, date, startTime, endTime, paymentMethod } = req.body;
 
     if (!sportId || !date || startTime === undefined || endTime === undefined) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -110,7 +151,8 @@ export const createBooking = async (req, res) => {
       endTime,
       durationHours,
       totalPrice,
-      status: 'pending_payment'
+      status: 'pending_payment',
+      paymentMethod
     });
 
     // 10 minute payment timeout
