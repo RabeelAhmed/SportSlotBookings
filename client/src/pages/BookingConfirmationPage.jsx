@@ -1,24 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import { toast } from 'react-hot-toast';
+import { LuCheck, LuLoaderCircle, LuCalendar, LuDollarSign, LuClock, LuDownload, LuArrowLeft } from 'react-icons/lu';
 import AuthContext from '../context/AuthContext';
-
-/* ─── Helpers ───────────────────────────────────────────────── */
-const formatHour = (h) => {
-  const actual = h >= 24 ? h - 24 : h;
-  const suffix = actual < 12 ? 'AM' : 'PM';
-  const display = actual === 0 ? 12 : actual > 12 ? actual - 12 : actual;
-  return display + ':00 ' + suffix;
-};
+import { formatHourLabel } from '../components/TimeSlotGrid';
 
 const getPaymentMethodLabel = (method) => {
   switch (method) {
     case 'jazzcash': return 'JazzCash';
     case 'easypaisa': return 'Easypaisa';
     case 'bank_transfer': return 'Bank Transfer';
-    default: return method;
+    default: return method || '';
   }
 };
 
@@ -61,6 +54,7 @@ const BookingConfirmationPage = () => {
       return;
     }
     fetchBooking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, isAuthenticated]);
 
   // Polling every 15 seconds if pending
@@ -72,6 +66,7 @@ const BookingConfirmationPage = () => {
     return () => {
       if (pollInterval) clearInterval(pollInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking?.status]);
 
   // Countdown timer local tick
@@ -92,6 +87,7 @@ const BookingConfirmationPage = () => {
     return () => {
       if (timerInterval) clearInterval(timerInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, booking?.status]);
 
   const formatTime = (seconds) => {
@@ -103,207 +99,274 @@ const BookingConfirmationPage = () => {
 
   const handleDownloadQR = () => {
     if (!booking?.qrCode) return;
-    const a = document.createElement('href');
-    a.href = booking.qrCode;
-    a.download = `booking-qr-${booking.bookingReference || booking._id}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    link.href = booking.qrCode;
+    link.download = `booking-qr-${booking.bookingReference || booking._id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0A0A0F', color: '#00FF87' }}>
-        <div style={{ fontSize: '1.25rem', fontFamily: "'Inter', sans-serif" }}>Loading...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)', color: 'var(--accent)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font)', fontSize: '14px' }}>
+          <span className="spinner" />
+          <span>Loading booking details...</span>
+        </div>
       </div>
     );
   }
 
   if (error || !booking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0A0A0F', color: '#FF5050', fontFamily: "'Inter', sans-serif" }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-          <h2>{error || 'Booking not found'}</h2>
-          <button onClick={() => navigate('/my-bookings')} style={{ marginTop: '1rem', padding: '0.75rem 1.5rem', background: '#13131A', border: '1px solid rgba(255,255,255,0.1)', color: '#F0F0F5', borderRadius: '0.75rem', cursor: 'pointer' }}>View My Bookings</button>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)', fontFamily: 'var(--font)' }}>
+        <div className="card" style={{ textAlign: 'center', maxWidth: '400px', width: '100%' }}>
+          <h2 style={{ color: 'var(--danger)', fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>
+            Failed to load booking
+          </h2>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+            {error || 'The requested booking could not be found.'}
+          </p>
+          <button onClick={() => navigate('/my-bookings')} className="btn-secondary" style={{ width: '100%' }}>
+            View My Bookings
+          </button>
         </div>
       </div>
     );
   }
 
   const displayDate = new Date(booking.date).toLocaleDateString('en-GB', {
-    weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
 
+  const pageVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.25, ease: 'easeOut' } 
+    }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0F', fontFamily: "'Inter', sans-serif", paddingTop: '100px', paddingBottom: '60px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 1.5rem' }}>
+    <motion.div
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+      style={{ 
+        minHeight: '100vh', 
+        backgroundColor: 'var(--bg-base)', 
+        paddingTop: '56px',
+        paddingBottom: '48px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px'
+      }}
+    >
+      <div style={{ maxWidth: '480px', width: '100%', marginTop: '56px' }}>
         
         {/* State 1: Payment Pending */}
         {booking.status === 'pending_payment' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div style={{ background: '#13131A', borderRadius: '1.5rem', border: '1px solid rgba(255,200,0,0.2)', padding: '2rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-              
-              <motion.div 
-                animate={{ scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }} 
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,200,0,0.1)', color: '#FFC800', padding: '0.5rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700, marginBottom: '1.5rem' }}
-              >
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FFC800' }}></div>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
+            
+            {/* Status Pill */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <span className="badge badge-pending" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="spinner" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} />
                 Payment Pending
-              </motion.div>
+              </span>
+            </div>
 
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#F0F0F5', marginBottom: '0.5rem' }}>Waiting for Payment Confirmation</h1>
-              <p style={{ color: '#9898B0', fontSize: '0.95rem', lineHeight: 1.6, maxWidth: '400px', margin: '0 auto 2rem' }}>
+            <div>
+              <h1 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+                Awaiting Confirmation
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0, lineHeight: '1.6' }}>
                 Once our team confirms your payment, your QR code will appear here. This page updates automatically.
               </p>
+            </div>
 
-              {timeLeft > 0 ? (
-                <div style={{ background: 'rgba(255, 60, 60, 0.05)', border: '1px dashed rgba(255, 60, 60, 0.3)', borderRadius: '1rem', padding: '1.25rem', marginBottom: '2rem' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#FF5050', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.5rem' }}>Time left to pay</div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#FF5050', fontVariantNumeric: 'tabular-nums' }}>{formatTime(timeLeft)}</div>
+            {timeLeft > 0 ? (
+              <div style={{ 
+                backgroundColor: 'var(--danger-muted)', 
+                border: '1px dashed var(--danger)', 
+                borderRadius: '8px', 
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)' }}>
+                  Time Remaining to Pay
+                </span>
+                <span style={{ fontSize: '24px', fontWeight: 600, color: 'var(--danger)', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+            ) : (
+              <div style={{ color: 'var(--danger)', fontSize: '14px', fontWeight: 500 }}>
+                Payment window has expired.
+              </div>
+            )}
+
+            <div style={{ textAlign: 'left', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <span className="label-style">Booking Summary</span>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Sport</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{booking.sport?.name}</span>
                 </div>
-              ) : (
-                <div style={{ color: '#FF5050', marginBottom: '2rem', fontWeight: 600 }}>Payment window has expired.</div>
-              )}
-
-              <div style={{ textAlign: 'left', background: 'rgba(255,255,255,0.03)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', color: '#F0F0F5', marginBottom: '1rem', fontWeight: 700 }}>Booking Summary</h3>
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#9898B0', fontSize: '0.9rem' }}>Sport</span>
-                    <span style={{ color: '#F0F0F5', fontSize: '0.9rem', fontWeight: 600 }}>{booking.sport?.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#9898B0', fontSize: '0.9rem' }}>Date</span>
-                    <span style={{ color: '#F0F0F5', fontSize: '0.9rem', fontWeight: 600 }}>{displayDate}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#9898B0', fontSize: '0.9rem' }}>Time</span>
-                    <span style={{ color: '#F0F0F5', fontSize: '0.9rem', fontWeight: 600 }}>{formatHour(booking.startTime)} → {formatHour(booking.endTime)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#9898B0', fontSize: '0.9rem' }}>Amount</span>
-                    <span style={{ color: '#00FF87', fontSize: '1rem', fontWeight: 800 }}>Rs. {booking.totalPrice.toLocaleString()}</span>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Date</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{displayDate}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Time</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{formatHourLabel(booking.startTime)} &ndash; {formatHourLabel(booking.endTime)}</span>
+                </div>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '4px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total</span>
+                  <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Rs. {booking.totalPrice.toLocaleString()}</span>
                 </div>
               </div>
-
-              {booking.paymentMethod && (
-                <div style={{ textAlign: 'left', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: '1rem', padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '0.95rem', color: '#F0F0F5', marginBottom: '0.5rem', fontWeight: 700 }}>Instructions ({getPaymentMethodLabel(booking.paymentMethod)})</h3>
-                  <p style={{ color: '#9898B0', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
-                    Please transfer <strong>Rs. {booking.totalPrice.toLocaleString()}</strong> via {getPaymentMethodLabel(booking.paymentMethod)}. 
-                    Use booking reference <strong>[REF]</strong> as the description.
-                  </p>
-                </div>
-              )}
-
             </div>
-          </motion.div>
+
+            {booking.paymentMethod && (
+              <div style={{ textAlign: 'left', border: '1px dashed var(--border)', borderRadius: '8px', padding: '16px' }}>
+                <span className="label-style" style={{ display: 'block', marginBottom: '8px' }}>
+                  Instructions ({getPaymentMethodLabel(booking.paymentMethod)})
+                </span>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.5', margin: 0 }}>
+                  Please transfer <strong>Rs. {booking.totalPrice.toLocaleString()}</strong> via {getPaymentMethodLabel(booking.paymentMethod)}. 
+                  Ensure you input the reference details as instructed.
+                </p>
+              </div>
+            )}
+
+            <button onClick={() => navigate('/my-bookings')} className="btn-secondary" style={{ width: '100%' }}>
+              Go to My Bookings
+            </button>
+          </div>
         )}
 
         {/* State 2: Confirmed */}
         {booking.status === 'confirmed' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, type: 'spring' }}
-          >
-            <div style={{ background: '#13131A', borderRadius: '1.5rem', border: '1px solid rgba(0,255,135,0.2)', padding: '2.5rem 2rem', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,255,135,0.05)' }}>
-              
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-                style={{ width: '80px', height: '80px', background: 'rgba(0,255,135,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}
-              >
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#00FF87" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <motion.polyline 
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                    points="20 6 9 17 4 12"
-                  ></motion.polyline>
-                </svg>
-              </motion.div>
-
-              <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#F0F0F5', marginBottom: '0.5rem' }}>Booking Confirmed!</h1>
-              <div style={{ color: '#9898B0', fontSize: '0.95rem', marginBottom: '2rem' }}>
-                Ref: <span style={{ color: '#F0F0F5', fontWeight: 700, letterSpacing: '0.05em' }}>{booking.bookingReference || booking._id.slice(-8).toUpperCase()}</span>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '24px', textAlign: 'center' }}>
+            
+            {/* Checkmark Circle */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '50%', 
+                backgroundColor: 'var(--success-muted)', 
+                border: '1px solid var(--success)',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: 'var(--success)'
+              }}>
+                <LuCheck size={24} />
               </div>
+            </div>
 
-              {/* QR Code Section */}
-              <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '1.25rem', display: 'inline-block', marginBottom: '1.5rem' }}>
+            <div>
+              <h1 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+                Booking Confirmed
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                Reference: <span className="mono-chip" style={{ fontSize: '12px' }}>{booking.bookingReference || booking._id.slice(-8).toUpperCase()}</span>
+              </p>
+            </div>
+
+            {/* QR Card Container */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div style={{ 
+                backgroundColor: '#FFFFFF', 
+                padding: '12px', 
+                borderRadius: '12px', 
+                display: 'inline-flex',
+                boxShadow: 'var(--shadow)'
+              }}>
                 {booking.qrCode ? (
-                  <img src={booking.qrCode} alt="Booking QR Code" style={{ width: '200px', height: '200px', display: 'block' }} />
+                  <img src={booking.qrCode} alt="Booking QR Code" style={{ width: '216px', height: '216px', display: 'block' }} />
                 ) : (
-                  <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0', color: '#666' }}>QR not available</div>
+                  <div style={{ width: '216px', height: '216px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    QR Code Not Available
+                  </div>
                 )}
               </div>
-              <p style={{ color: '#00FF87', fontSize: '0.9rem', fontWeight: 600, marginBottom: '2.5rem' }}>
+              <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 500 }}>
                 Show this QR code at the court entrance
-              </p>
-
-              {/* Booking details card */}
-              <div style={{ textAlign: 'left', background: 'rgba(255,255,255,0.03)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Sport</div>
-                    <div style={{ color: '#F0F0F5', fontWeight: 600 }}>{booking.sport?.name}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Date</div>
-                    <div style={{ color: '#F0F0F5', fontWeight: 600 }}>{displayDate}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Time</div>
-                    <div style={{ color: '#F0F0F5', fontWeight: 600 }}>{formatHour(booking.startTime)} - {formatHour(booking.endTime)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Amount Paid</div>
-                    <div style={{ color: '#00FF87', fontWeight: 700 }}>Rs. {booking.totalPrice.toLocaleString()}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleDownloadQR}
-                  style={{ width: '100%', padding: '1rem', background: 'linear-gradient(135deg,#00FF87,#00cc6a)', border: 'none', borderRadius: '0.75rem', color: '#0A0A0F', fontWeight: 800, fontSize: '1rem', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}
-                >
-                  ↓ Download QR Code
-                </motion.button>
-                <Link to="/my-bookings" style={{ textDecoration: 'none' }}>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    style={{ width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', color: '#F0F0F5', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}
-                  >
-                    View My Bookings
-                  </motion.button>
-                </Link>
-              </div>
-
+              </span>
             </div>
-          </motion.div>
+
+            {/* Flat Grid Details (2x2) */}
+            <div style={{ 
+              backgroundColor: 'var(--bg-elevated)', 
+              border: '1px solid var(--border)', 
+              borderRadius: '8px', 
+              padding: '16px',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+              textAlign: 'left'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Sport</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{booking.sport?.name}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Date</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{displayDate}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Time</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{formatHourLabel(booking.startTime)} &ndash; {formatHourLabel(booking.endTime)}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Paid Amount</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--success)' }}>Rs. {booking.totalPrice.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button 
+                onClick={handleDownloadQR}
+                className="btn-primary" 
+                style={{ width: '100%', gap: '8px' }}
+              >
+                <LuDownload size={16} />
+                Download QR Code
+              </button>
+              <Link to="/my-bookings" style={{ textDecoration: 'none' }}>
+                <button className="btn-secondary" style={{ width: '100%' }}>
+                  View My Bookings
+                </button>
+              </Link>
+            </div>
+
+          </div>
         )}
 
-        {/* State 3: Cancelled / Expired */}
+        {/* State 3: Cancelled / Completed */}
         {(booking.status === 'cancelled' || booking.status === 'completed') && (
-           <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#13131A', borderRadius: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-             <h2 style={{ color: '#F0F0F5', marginBottom: '1rem' }}>Booking is {booking.status}</h2>
-             <Link to="/my-bookings">
-                <button style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#F0F0F5', borderRadius: '0.5rem', cursor: 'pointer' }}>
+           <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+             <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+               Booking {booking.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+             </h2>
+             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
+               This booking reference has been marked as {booking.status}.
+             </p>
+             <Link to="/my-bookings" style={{ textDecoration: 'none' }}>
+                <button className="btn-secondary" style={{ width: '100%' }}>
                   Go to My Bookings
                 </button>
              </Link>
@@ -311,7 +374,7 @@ const BookingConfirmationPage = () => {
         )}
 
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,5 +1,5 @@
 import Booking from '../models/Booking.js';
-import { calculatePrice } from '../utils/helpers.js';
+import { calculatePrice, generateBookingReference } from '../utils/helpers.js';
 
 // @desc    Get slot availability
 // @route   GET /api/bookings/availability?sportId=xxx&date=YYYY-MM-DD
@@ -12,11 +12,11 @@ export const getSlotAvailability = async (req, res) => {
       return res.status(400).json({ message: 'sportId and date are required' });
     }
 
-    // Find all confirmed or pending bookings for this sport and date
+    // Find all confirmed, pending or blocked bookings for this sport and date
     const bookings = await Booking.find({
       sport: sportId,
       date,
-      status: { $in: ['confirmed', 'pending_payment'] }
+      status: { $in: ['confirmed', 'pending_payment', 'blocked'] }
     });
 
     const slots = [];
@@ -34,11 +34,17 @@ export const getSlotAvailability = async (req, res) => {
         status = 'closed';
       }
 
-      // Check if this hour is booked
+      // Check if this hour is booked or blocked
       const overlappingBooking = bookings.find(b => hour >= b.startTime && hour < b.endTime);
       
       if (overlappingBooking && status !== 'closed') {
-        status = 'booked';
+        if (overlappingBooking.status === 'blocked') {
+          status = 'blocked';
+        } else if (overlappingBooking.status === 'pending_payment') {
+          status = 'pending';
+        } else {
+          status = 'booked';
+        }
         bookingId = overlappingBooking._id;
       }
 
@@ -91,7 +97,7 @@ export const getBookingById = async (req, res) => {
     }
 
     // Check if user owns the booking or is admin
-    if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && (!booking.user || booking.user._id.toString() !== req.user._id.toString())) {
       return res.status(403).json({ message: 'Not authorized to view this booking' });
     }
 
@@ -155,6 +161,9 @@ export const createBooking = async (req, res) => {
       paymentMethod
     });
 
+    // Assign unique booking reference
+    booking.bookingReference = generateBookingReference();
+
     // 10 minute payment timeout
     booking.expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -189,7 +198,7 @@ export const cancelBooking = async (req, res) => {
     }
 
     // Check if user owns the booking or is admin
-    if (booking.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && (!booking.user || booking.user.toString() !== req.user._id.toString())) {
       return res.status(403).json({ message: 'Not authorized to cancel this booking' });
     }
 

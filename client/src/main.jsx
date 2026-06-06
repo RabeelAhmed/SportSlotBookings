@@ -9,6 +9,8 @@ import BookingPage from './pages/BookingPage.jsx'
 import BookingConfirmationPage from './pages/BookingConfirmationPage.jsx'
 import MyBookingsPage from './pages/MyBookingsPage.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
+import AdminQRScanner from './pages/AdminQRScanner.jsx'
+import AdminSports from './pages/AdminSports.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 
@@ -23,6 +25,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="booking/:bookingId" element={<BookingConfirmationPage />} />
           <Route path="my-bookings" element={<MyBookingsPage />} />
           <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/scanner" element={<AdminQRScanner />} />
+          <Route path="admin/sports" element={<AdminSports />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
         </Route>

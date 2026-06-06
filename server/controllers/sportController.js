@@ -5,10 +5,13 @@ import Sport from '../models/Sport.js';
 // @access  Public
 export const getAllSports = async (req, res) => {
   try {
-    const sports = await Sport.find({ isActive: true });
+    const { all } = req.query;
+    const query = all === 'true' ? {} : { isActive: true };
+    const sports = await Sport.find(query);
     res.json(sports);
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error in getAllSports:', error);
+    res.status(500).json({ message: error.message || 'Server Error' });
   }
 };
 
@@ -24,7 +27,8 @@ export const getSportById = async (req, res) => {
       res.status(404).json({ message: 'Sport not found' });
     }
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error in getSportById:', error);
+    res.status(500).json({ message: error.message || 'Server Error' });
   }
 };
 
@@ -43,7 +47,8 @@ export const createSport = async (req, res) => {
     const createdSport = await sport.save();
     res.status(201).json(createdSport);
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error in createSport:', error);
+    res.status(500).json({ message: error.message || 'Server Error' });
   }
 };
 
@@ -61,6 +66,7 @@ export const toggleSport = async (req, res) => {
       res.status(404).json({ message: 'Sport not found' });
     }
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error in toggleSport:', error);
+    res.status(500).json({ message: error.message || 'Server Error' });
   }
 };

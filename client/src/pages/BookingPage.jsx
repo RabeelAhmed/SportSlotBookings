@@ -1,32 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { LuClock, LuArrowLeft, LuCreditCard, LuWallet, LuLandmark } from 'react-icons/lu';
 import AuthContext from '../context/AuthContext';
-
-/* ─── Helpers ───────────────────────────────────────────────── */
-const formatHour = (h) => {
-  const actual = h >= 24 ? h - 24 : h;
-  const suffix = actual < 12 ? 'AM' : 'PM';
-  const display = actual === 0 ? 12 : actual > 12 ? actual - 12 : actual;
-  return display + ':00 ' + suffix;
-};
-
-const getSportCfg = (name = '') => {
-  const lc = name.toLowerCase();
-  if (lc.includes('cricket')) return { emoji: '🏏', gradient: 'linear-gradient(135deg,#00FF87,#00cc6a)', glow: 'rgba(0,255,135,0.2)', accent: '#00FF87' };
-  if (lc.includes('football')) return { emoji: '⚽', gradient: 'linear-gradient(135deg,#00ccff,#0077ff)', glow: 'rgba(0,200,255,0.2)', accent: '#00ccff' };
-  return { emoji: '🏟️', gradient: 'linear-gradient(135deg,#a855f7,#6366f1)', glow: 'rgba(168,85,247,0.2)', accent: '#a855f7' };
-};
+import { formatHourLabel } from '../components/TimeSlotGrid';
 
 const BookingPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { token, isAuthenticated } = useContext(AuthContext);
 
-  // Retrieve state passed from SportPage.jsx
-  // SportPage passes: { sportId, sportName, date, startHour, endHour, price }
   const state = location.state || {};
   const { sportId, sportName, date, startHour, endHour, price } = state;
 
@@ -41,7 +26,7 @@ const BookingPage = () => {
       return;
     }
     if (!sportId || startHour === undefined || endHour === undefined) {
-      toast.error('Invalid booking details. Please select a slot again.');
+      toast.error('Invalid booking details.');
       navigate('/');
       return;
     }
@@ -51,7 +36,7 @@ const BookingPage = () => {
         if (prev <= 1) {
           clearInterval(timer);
           toast.error('Booking session expired.');
-          navigate(`/sport/${sportId}`);
+          navigate('/sport/' + sportId);
           return 0;
         }
         return prev - 1;
@@ -62,7 +47,7 @@ const BookingPage = () => {
   }, [sportId, startHour, endHour, isAuthenticated, navigate]);
 
   if (!sportId || startHour === undefined || endHour === undefined) {
-    return null; // Will redirect in useEffect
+    return null;
   }
 
   const duration = endHour - startHour;
@@ -74,11 +59,7 @@ const BookingPage = () => {
     else if (h >= 17 && h < 25) peakHours++;
   }
 
-  const cfg = getSportCfg(sportName);
-
-  // Format date correctly
   const displayDate = new Date(date).toLocaleDateString('en-GB', {
-    weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -105,7 +86,7 @@ const BookingPage = () => {
           date,
           startTime: startHour,
           endTime: endHour,
-          paymentMethod, // Assuming backend accepts paymentMethod in createBooking later, or we just pass it
+          paymentMethod,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -119,203 +100,300 @@ const BookingPage = () => {
     }
   };
 
+  // Determine timer color theme based on duration left (warn vs danger)
+  const isTimerDanger = timeLeft <= 180; // 3 minutes warning
+  const timerStyle = {
+    height: '40px',
+    padding: '0 12px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    fontSize: '13px',
+    fontWeight: 500,
+    backgroundColor: isTimerDanger ? 'var(--danger-muted)' : 'var(--warning-muted)',
+    border: `1px solid ${isTimerDanger ? 'var(--danger)' : 'var(--warning)'}`,
+    color: isTimerDanger ? 'var(--danger)' : 'var(--warning)',
+    marginBottom: '24px'
+  };
+
+  const labelStyle = {
+    fontSize: '11px',
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: '#64748B'
+  };
+
+  const valueStyle = {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: 'var(--text-primary)'
+  };
+
+  // Page entrance animation
+  const pageVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.25, ease: 'easeOut' } 
+    }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0F', fontFamily: "'Inter', sans-serif", paddingTop: '100px', paddingBottom: '40px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem' }}>
-        
-        {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <button onClick={() => navigate(-1)} style={{
-            background: 'none', border: 'none', color: '#9898B0', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'
-          }}>
-            ← Back
-          </button>
-          <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#F0F0F5', margin: 0 }}>Complete Your Booking</h1>
-          <p style={{ color: '#9898B0', marginTop: '0.5rem' }}>Review your details and select a payment method.</p>
+    <motion.div
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+      style={{ 
+        minHeight: '100vh', 
+        backgroundColor: 'var(--bg-base)', 
+        paddingTop: '56px',
+        paddingBottom: '48px'
+      }}
+    >
+      {/* Back button */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px 24px 0' }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            fontSize: '14px',
+            cursor: 'pointer',
+            padding: 0,
+            transition: 'color 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          <LuArrowLeft size={16} />
+          Back
+        </button>
+      </div>
+
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px' }}>
+        {/* Timer Bar */}
+        <div style={timerStyle}>
+          <LuClock size={16} />
+          <span>Time left to complete booking: {formatTime(timeLeft)}</span>
         </div>
 
-        <div style={{ display: 'grid', gap: '1.5rem' }}>
-          
-          {/* Booking Summary Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              background: '#13131A',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '1.25rem',
-              padding: '1.5rem',
-              position: 'relative'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '2.5rem' }}>{cfg.emoji}</span>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#F0F0F5', margin: 0 }}>{sportName}</h2>
-                  <div style={{ color: '#9898B0', fontSize: '0.85rem', marginTop: '0.2rem' }}>{displayDate}</div>
-                </div>
+        {/* Split Grid */}
+        <div 
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '360px minmax(0, 1fr)',
+            gap: '48px',
+            alignItems: 'start'
+          }}
+          className="booking-split"
+        >
+          {/* Left Column: Summary */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Review Details
+              </h3>
+              <hr className="card-divider" />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={labelStyle}>Sport</span>
+                <span style={valueStyle}>{sportName}</span>
               </div>
-              <div style={{
-                background: 'rgba(255, 60, 60, 0.1)',
-                border: '1px solid rgba(255, 60, 60, 0.2)',
-                color: '#FF5050',
-                padding: '0.4rem 0.75rem',
-                borderRadius: '0.5rem',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}>
-                <span>⏱</span> {formatTime(timeLeft)}
+              <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={labelStyle}>Date</span>
+                <span style={valueStyle}>{displayDate}</span>
+              </div>
+              <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={labelStyle}>Time</span>
+                <span style={valueStyle}>{formatHourLabel(startHour)} &ndash; {formatHourLabel(endHour)}</span>
+              </div>
+              <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={labelStyle}>Duration</span>
+                <span style={valueStyle}>{duration} hour{duration > 1 ? 's' : ''}</span>
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '0.75rem', padding: '1.25rem', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>Time</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F0F0F5' }}>{formatHour(startHour)} → {formatHour(endHour)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: '#9898B0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>Duration</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F0F0F5' }}>{duration} hour{duration > 1 ? 's' : ''}</div>
-                </div>
-              </div>
-            </div>
+            <hr className="card-divider" />
 
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#F0F0F5', marginBottom: '1rem' }}>Price Breakdown</h3>
-              
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <span style={labelStyle}>Rate Breakdown</span>
               {offPeakHours > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                  <span style={{ color: '#9898B0' }}>Off-Peak (9AM - 5PM)</span>
-                  <span style={{ color: '#F0F0F5' }}>{offPeakHours} hr{offPeakHours > 1 ? 's' : ''} × Rs. 1,000 = Rs. {(offPeakHours * 1000).toLocaleString()}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <span>Off-Peak (9AM - 5PM)</span>
+                  <span>{offPeakHours} hr{offPeakHours > 1 ? 's' : ''} &times; Rs. 1,000</span>
                 </div>
               )}
               {peakHours > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                  <span style={{ color: '#9898B0' }}>Peak (5PM - 1AM)</span>
-                  <span style={{ color: '#F0F0F5' }}>{peakHours} hr{peakHours > 1 ? 's' : ''} × Rs. 1,500 = Rs. {(peakHours * 1500).toLocaleString()}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <span>Peak (5PM - 1AM)</span>
+                  <span>{peakHours} hr{peakHours > 1 ? 's' : ''} &times; Rs. 1,500</span>
                 </div>
               )}
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '1.25rem', fontWeight: 800 }}>
-                <span style={{ color: '#F0F0F5' }}>Total</span>
-                <span style={{ color: '#00FF87' }}>Rs. {(price || 0).toLocaleString()}</span>
+            </div>
+
+            <hr className="card-divider" />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Total Price</span>
+              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent)' }}>
+                Rs. {(price || 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Right Column: Payment & Instructions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            {/* Selector */}
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                Select Payment Method
+              </h2>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: '0 0 16px 0' }}>
+                Choose a provider to view transfer account details.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+                {[
+                  { id: 'jazzcash', name: 'JazzCash', icon: <LuCreditCard size={18} /> },
+                  { id: 'easypaisa', name: 'Easypaisa', icon: <LuWallet size={18} /> },
+                  { id: 'bank_transfer', name: 'Bank Transfer', icon: <LuLandmark size={18} /> },
+                ].map(method => {
+                  const isSelected = paymentMethod === method.id;
+                  return (
+                    <button
+                      key={method.id}
+                      onClick={() => setPaymentMethod(method.id)}
+                      style={{
+                        background: isSelected ? 'var(--accent-muted)' : 'var(--bg-surface)',
+                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                        borderRadius: '8px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.15s ease',
+                        outline: 'none',
+                        color: isSelected ? 'var(--accent)' : 'var(--text-secondary)'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                          e.currentTarget.style.color = 'var(--text-primary)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                          e.currentTarget.style.color = 'var(--text-secondary)';
+                        }
+                      }}
+                    >
+                      {method.icon}
+                      <span style={{ fontSize: '13px', fontWeight: 500 }}>{method.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </motion.div>
 
-          {/* Payment Method Selection */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#F0F0F5', marginBottom: '1rem' }}>Select Payment Method</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-              
-              {[
-                { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
-                { id: 'easypaisa', name: 'Easypaisa', icon: '💸' },
-                { id: 'bank_transfer', name: 'Bank Transfer', icon: '🏦' },
-              ].map(method => (
-                <motion.div
-                  key={method.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setPaymentMethod(method.id)}
-                  style={{
-                    background: paymentMethod === method.id ? 'rgba(0,255,135,0.05)' : '#13131A',
-                    border: paymentMethod === method.id ? '2px solid #00FF87' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '1rem',
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span style={{ fontSize: '1.5rem' }}>{method.icon}</span>
-                  <span style={{ fontSize: '1rem', fontWeight: 600, color: paymentMethod === method.id ? '#00FF87' : '#F0F0F5' }}>{method.name}</span>
-                </motion.div>
-              ))}
+            {/* Instruction Sheet */}
+            {paymentMethod && (
+              <div 
+                className="card" 
+                style={{ 
+                  borderStyle: 'dashed',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px'
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    Transfer Instructions
+                  </h3>
+                  <hr className="card-divider" />
+                </div>
 
-            </div>
-          </motion.div>
+                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                  {paymentMethod === 'jazzcash' && (
+                    <p style={{ margin: 0 }}>
+                      Send <strong style={{ color: 'var(--text-primary)' }}>Rs. {(price || 0).toLocaleString()}</strong> to number <strong style={{ color: 'var(--text-primary)' }}>0300-1234567</strong> (Account: SportSlot Court). Please enter the booking reference <span className="mono-chip" style={{ fontSize: '12px', padding: '2px 6px' }}>[REF]</span> in the transaction description.
+                    </p>
+                  )}
+                  {paymentMethod === 'easypaisa' && (
+                    <p style={{ margin: 0 }}>
+                      Send <strong style={{ color: 'var(--text-primary)' }}>Rs. {(price || 0).toLocaleString()}</strong> to number <strong style={{ color: 'var(--text-primary)' }}>0345-1234567</strong> (Account: SportSlot Court). Please enter the booking reference <span className="mono-chip" style={{ fontSize: '12px', padding: '2px 6px' }}>[REF]</span> in the transaction description.
+                    </p>
+                  )}
+                  {paymentMethod === 'bank_transfer' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <p style={{ margin: 0 }}>
+                        Transfer <strong style={{ color: 'var(--text-primary)' }}>Rs. {(price || 0).toLocaleString()}</strong> to the following bank account:
+                      </p>
+                      <ul style={{ listStyleType: 'none', padding: 0, margin: '8px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <li>Bank: <strong style={{ color: 'var(--text-primary)' }}>Meezan Bank</strong></li>
+                        <li>Account Name: <strong style={{ color: 'var(--text-primary)' }}>SportSlot Pvt Ltd</strong></li>
+                        <li>Account Number: <strong style={{ color: 'var(--text-primary)' }}>0123 4567 8910</strong></li>
+                        <li>Branch Code: <strong style={{ color: 'var(--text-primary)' }}>0123</strong></li>
+                      </ul>
+                      <p style={{ margin: 0 }}>
+                        Please enter the booking reference <span className="mono-chip" style={{ fontSize: '12px', padding: '2px 6px' }}>[REF]</span> in the transaction reference box.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-          {/* Payment Instructions Panel */}
-          {paymentMethod && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px dashed rgba(255,255,255,0.2)',
-                borderRadius: '1rem',
-                padding: '1.5rem',
-                marginTop: '0.5rem'
-              }}>
-                <h4 style={{ fontSize: '1rem', color: '#F0F0F5', marginBottom: '1rem', fontWeight: 700 }}>Payment Instructions</h4>
-                
-                {paymentMethod === 'jazzcash' && (
-                  <p style={{ color: '#9898B0', fontSize: '0.95rem', lineHeight: 1.6 }}>
-                    Send <strong style={{ color: '#F0F0F5' }}>Rs. {(price || 0).toLocaleString()}</strong> to <strong style={{ color: '#F0F0F5' }}>0300-1234567</strong> (Account: SportSlot Court). Use booking ref <strong style={{ color: '#00FF87' }}>[REF]</strong> as description.
-                  </p>
-                )}
-                {paymentMethod === 'easypaisa' && (
-                  <p style={{ color: '#9898B0', fontSize: '0.95rem', lineHeight: 1.6 }}>
-                    Send <strong style={{ color: '#F0F0F5' }}>Rs. {(price || 0).toLocaleString()}</strong> to <strong style={{ color: '#F0F0F5' }}>0345-1234567</strong> (Account: SportSlot Court). Use booking ref <strong style={{ color: '#00FF87' }}>[REF]</strong> as description.
-                  </p>
-                )}
-                {paymentMethod === 'bank_transfer' && (
-                  <div style={{ color: '#9898B0', fontSize: '0.95rem', lineHeight: 1.6 }}>
-                    <p style={{ marginBottom: '0.5rem' }}>Transfer <strong style={{ color: '#F0F0F5' }}>Rs. {(price || 0).toLocaleString()}</strong> to the following account:</p>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      <li>Bank: <strong style={{ color: '#F0F0F5' }}>Meezan Bank</strong></li>
-                      <li>Account Name: <strong style={{ color: '#F0F0F5' }}>SportSlot Pvt Ltd</strong></li>
-                      <li>Account Number: <strong style={{ color: '#F0F0F5' }}>0123 4567 8910</strong></li>
-                      <li>Branch Code: <strong style={{ color: '#F0F0F5' }}>0123</strong></li>
-                    </ul>
-                    <p style={{ marginTop: '0.5rem' }}>Use booking ref <strong style={{ color: '#00FF87' }}>[REF]</strong> as reference.</p>
-                  </div>
-                )}
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleConfirm}
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    marginTop: '1.5rem',
-                    padding: '1rem',
-                    background: cfg.gradient,
-                    border: 'none',
-                    borderRadius: '0.75rem',
-                    color: '#0A0A0F',
-                    fontWeight: 800,
-                    fontSize: '1rem',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.7 : 1,
-                    boxShadow: `0 4px 20px ${cfg.glow}`,
-                    fontFamily: "'Inter', sans-serif"
-                  }}
-                >
-                  {loading ? 'Confirming...' : 'I have made the payment'}
-                </motion.button>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={loading}
+                    className="btn-primary"
+                    style={{ width: '100%', height: '44px', fontSize: '15px' }}
+                  >
+                    {loading ? (
+                      <>
+                        <span className="spinner" />
+                        <span>Confirming booking...</span>
+                      </>
+                    ) : (
+                      'I have made the payment'
+                    )}
+                  </button>
+                </div>
               </div>
-            </motion.div>
-          )}
-
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .booking-split {
+            grid-template-columns: 1fr !important;
+            gap: 32px !important;
+          }
+        }
+      `}</style>
+    </motion.div>
   );
 };
 

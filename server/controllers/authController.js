@@ -19,7 +19,11 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = await User.create({ name, email, phone, password: hashedPassword });
+    // Assign admin role regardless of how the phone is formatted (e.g. 03436324197 or 0343-6324197)
+    const isAdminPhone = /^0343.?6324197$/.test(phone.trim());
+    const role = isAdminPhone ? 'admin' : 'user';
+
+    const user = await User.create({ name, email, phone, password: hashedPassword, role });
     if (user) {
       res.status(201).json({
         _id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, token: generateToken(user._id),

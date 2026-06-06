@@ -1,23 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { LuCalendar, LuQrCode, LuDownload, LuX, LuTriangleAlert, LuPlus } from 'react-icons/lu';
 import AuthContext from '../context/AuthContext';
+import { formatHourLabel } from '../components/TimeSlotGrid';
 
-/* ─── Helpers ───────────────────────────────────────────────── */
-const formatHour = (h) => {
-  const actual = h >= 24 ? h - 24 : h;
-  const suffix = actual < 12 ? 'AM' : 'PM';
-  const display = actual === 0 ? 12 : actual > 12 ? actual - 12 : actual;
-  return display + ':00 ' + suffix;
-};
-
-const getSportIcon = (name = '') => {
+const getSportInitials = (name = '') => {
   const lc = name.toLowerCase();
-  if (lc.includes('cricket')) return '🏏';
-  if (lc.includes('football')) return '⚽';
-  return '🏟️';
+  if (lc.includes('cricket')) return 'CR';
+  if (lc.includes('football')) return 'FB';
+  return 'SP';
 };
 
 const MyBookingsPage = () => {
@@ -44,7 +38,7 @@ const MyBookingsPage = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         setBookings(data);
-      } catch (err) {
+      } catch (_err) {
         toast.error('Failed to load bookings');
       } finally {
         setLoading(false);
@@ -52,15 +46,6 @@ const MyBookingsPage = () => {
     };
     fetchBookings();
   }, [isAuthenticated, navigate, token]);
-
-  // Derived filtered bookings
-  const filteredBookings = bookings.filter((b) => {
-    if (filter === 'All') return true;
-    if (filter === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending_payment';
-    if (filter === 'Completed') return b.status === 'completed';
-    if (filter === 'Cancelled') return b.status === 'cancelled';
-    return true;
-  });
 
   const handleCancelConfirm = async () => {
     try {
@@ -87,52 +72,98 @@ const MyBookingsPage = () => {
     document.body.removeChild(a);
   };
 
+  // Derived filtered bookings
+  const filteredBookings = bookings.filter((b) => {
+    if (filter === 'All') return true;
+    if (filter === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending_payment';
+    if (filter === 'Completed') return b.status === 'completed';
+    if (filter === 'Cancelled') return b.status === 'cancelled';
+    return true;
+  });
+
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0A0A0F', color: '#00FF87' }}>
-        <div style={{ fontSize: '1.25rem', fontFamily: "'Inter', sans-serif" }}>Loading...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)', color: 'var(--accent)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font)', fontSize: '14px' }}>
+          <span className="spinner" />
+          <span>Loading your bookings...</span>
+        </div>
       </div>
     );
   }
 
+  // Page motion variants
+  const pageVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.25, ease: 'easeOut' } 
+    }
+  };
+
+  const containerVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.06 } }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0F', fontFamily: "'Inter', sans-serif", paddingTop: '90px', paddingBottom: '60px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem' }}>
+    <motion.div
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+      style={{ 
+        minHeight: '100vh', 
+        backgroundColor: 'var(--bg-base)', 
+        paddingTop: '56px',
+        paddingBottom: '64px'
+      }}
+    >
+      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px 24px' }}>
         
         {/* Header */}
-        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: '#F0F0F5', margin: '0 0 0.5rem 0' }}>My Bookings</h1>
-            <p style={{ color: '#9898B0', fontSize: '1rem', margin: 0 }}>Welcome back, <span style={{ color: '#00FF87', fontWeight: 700 }}>{user?.name}</span>!</p>
+            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
+              My Bookings
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+              Manage and view your court reservations.
+            </p>
           </div>
-          <Link to="/">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              style={{ padding: '0.75rem 1.5rem', background: 'linear-gradient(135deg,#00FF87,#00cc6a)', color: '#0A0A0F', fontWeight: 700, border: 'none', borderRadius: '999px', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}
-            >
-              + New Booking
-            </motion.button>
+          <Link to="/" style={{ textDecoration: 'none' }}>
+            <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <LuPlus size={16} />
+              Book a Court
+            </button>
           </Link>
         </div>
 
         {/* Filter Tabs */}
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '1rem', marginBottom: '1.5rem', scrollbarWidth: 'none' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '8px', 
+          borderBottom: '1px solid var(--border)', 
+          marginBottom: '24px',
+          overflowX: 'auto',
+          scrollbarWidth: 'none'
+        }}>
           {['All', 'Upcoming', 'Completed', 'Cancelled'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                padding: '0.6rem 1.25rem',
-                background: filter === f ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.05)',
-                border: filter === f ? '1px solid #00FF87' : '1px solid rgba(255,255,255,0.1)',
-                color: filter === f ? '#00FF87' : '#9898B0',
-                borderRadius: '999px',
-                fontWeight: 600,
-                fontSize: '0.85rem',
+                padding: '12px 16px',
+                background: 'none',
+                border: 'none',
+                borderBottom: filter === f ? '2px solid var(--accent)' : '2px solid transparent',
+                color: filter === f ? 'var(--text-primary)' : 'var(--text-secondary)',
+                fontWeight: filter === f ? 500 : 400,
+                fontSize: '14px',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                outline: 'none',
+                whiteSpace: 'nowrap'
               }}
             >
               {f}
@@ -140,10 +171,15 @@ const MyBookingsPage = () => {
           ))}
         </div>
 
-        {/* Booking Cards */}
+        {/* Booking Cards Container */}
         <AnimatePresence mode="popLayout">
           {filteredBookings.length > 0 ? (
-            <div style={{ display: 'grid', gap: '1.25rem' }}>
+            <motion.div 
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
               {filteredBookings.map((b) => {
                 const bookingDateObj = new Date(b.date);
                 bookingDateObj.setHours(b.startTime, 0, 0, 0);
@@ -151,96 +187,108 @@ const MyBookingsPage = () => {
                 const isFuture = hoursDifference > 0;
                 const canCancel = hoursDifference >= 4 && b.status === 'confirmed';
 
+                let badgeClass = 'badge-completed';
+                if (b.status === 'confirmed') badgeClass = 'badge-confirmed';
+                if (b.status === 'pending_payment') badgeClass = 'badge-pending';
+                if (b.status === 'cancelled') badgeClass = 'badge-cancelled';
+
                 return (
                   <motion.div
                     key={b._id}
+                    variants={pageVariants}
                     layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="card"
                     style={{
-                      background: '#13131A',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: '1.25rem',
-                      padding: '1.5rem',
+                      padding: '20px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '1.25rem'
+                      gap: '16px',
+                      boxShadow: 'var(--shadow)'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ fontSize: '2.5rem', background: 'rgba(255,255,255,0.05)', width: '60px', height: '60px', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {getSportIcon(b.sport?.name)}
+                    {/* Top Row: Icon + Details + Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        {/* Initials badge */}
+                        <div style={{ 
+                          width: '48px', 
+                          height: '48px', 
+                          borderRadius: '50%', 
+                          backgroundColor: 'var(--bg-elevated)', 
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)'
+                        }}>
+                          {getSportInitials(b.sport?.name)}
                         </div>
                         <div>
-                          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#F0F0F5', margin: '0 0 0.25rem 0' }}>{b.sport?.name}</h3>
-                          <div style={{ color: '#9898B0', fontSize: '0.85rem' }}>
-                            {new Date(b.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} • {formatHour(b.startTime)} to {formatHour(b.endTime)}
+                          <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
+                            {b.sport?.name}
+                          </h3>
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                            {new Date(b.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} &bull; {formatHourLabel(b.startTime)} &ndash; {formatHourLabel(b.endTime)}
                           </div>
                         </div>
                       </div>
 
-                      {/* Status Badge */}
+                      <span className={`badge ${badgeClass}`}>
+                        {b.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    {/* Metadata strip */}
+                    <div style={{ 
+                      backgroundColor: 'var(--bg-elevated)', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: '8px', 
+                      padding: '12px 16px', 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+                      gap: '12px' 
+                    }}>
                       <div>
-                        {b.status === 'pending_payment' && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,200,0,0.1)', color: '#FFC800', padding: '0.4rem 0.8rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid rgba(255,200,0,0.2)' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#FFC800', animation: 'pulse 1.5s infinite' }}></div>
-                            Pending Payment
-                          </div>
-                        )}
-                        {b.status === 'confirmed' && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(0,255,135,0.1)', color: '#00FF87', padding: '0.4rem 0.8rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid rgba(0,255,135,0.2)' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00FF87' }}></div>
-                            Confirmed
-                          </div>
-                        )}
-                        {b.status === 'cancelled' && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,80,80,0.1)', color: '#FF5050', padding: '0.4rem 0.8rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid rgba(255,80,80,0.2)' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#FF5050' }}></div>
-                            Cancelled
-                          </div>
-                        )}
-                        {b.status === 'completed' && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.1)', color: '#9898B0', padding: '0.4rem 0.8rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#9898B0' }}></div>
-                            Completed
-                          </div>
-                        )}
+                        <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Duration</span>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{b.durationHours} hr{b.durationHours > 1 ? 's' : ''}</span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Total Price</span>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Rs. {b.totalPrice.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748B', display: 'block', marginBottom: '2px' }}>Reference</span>
+                        <span className="mono-chip" style={{ fontSize: '12px', padding: '2px 6px' }}>{b.bookingReference || b._id.slice(-8).toUpperCase()}</span>
                       </div>
                     </div>
 
-                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '0.75rem', padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '1rem' }}>
-                      <div>
-                        <div style={{ fontSize: '0.7rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Duration</div>
-                        <div style={{ color: '#F0F0F5', fontWeight: 600, fontSize: '0.9rem' }}>{b.durationHours} hr{b.durationHours > 1 ? 's' : ''}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.7rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Total Price</div>
-                        <div style={{ color: '#00FF87', fontWeight: 700, fontSize: '0.9rem' }}>Rs. {b.totalPrice.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.7rem', color: '#9898B0', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Ref ID</div>
-                        <div style={{ color: '#F0F0F5', fontWeight: 600, fontSize: '0.9rem', fontFamily: 'monospace' }}>{b.bookingReference || b._id.slice(-8).toUpperCase()}</div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
+                    {/* Actions Strip */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
                       <Link to={`/booking/${b._id}`} style={{ textDecoration: 'none' }}>
-                        <button style={{ padding: '0.6rem 1rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#F0F0F5', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                        <button className="btn-secondary" style={{ height: '32px', fontSize: '13px' }}>
                           View Details
                         </button>
                       </Link>
                       
                       {b.status === 'confirmed' && isFuture && (
-                        <button onClick={() => setQrModal({ isOpen: true, booking: b })} style={{ padding: '0.6rem 1rem', background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.3)', color: '#00FF87', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
+                        <button 
+                          onClick={() => setQrModal({ isOpen: true, booking: b })} 
+                          className="btn-primary" 
+                          style={{ height: '32px', fontSize: '13px', gap: '6px' }}
+                        >
+                          <LuQrCode size={14} />
                           Show QR
                         </button>
                       )}
                       
                       {canCancel && (
-                        <button onClick={() => setCancelModal({ isOpen: true, bookingId: b._id })} style={{ padding: '0.6rem 1rem', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', color: '#FF5050', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                        <button 
+                          onClick={() => setCancelModal({ isOpen: true, bookingId: b._id })} 
+                          className="btn-destructive" 
+                          style={{ height: '32px', fontSize: '13px' }}
+                        >
                           Cancel Booking
                         </button>
                       )}
@@ -248,20 +296,38 @@ const MyBookingsPage = () => {
                   </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              style={{ textAlign: 'center', padding: '4rem 2rem', background: '#13131A', borderRadius: '1.5rem', border: '1px dashed rgba(255,255,255,0.1)' }}
+              style={{ 
+                textAlign: 'center', 
+                padding: '64px 24px', 
+                backgroundColor: 'var(--bg-surface)', 
+                border: '1px dashed var(--border)', 
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px'
+              }}
             >
-              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🕵️</div>
-              <h2 style={{ color: '#F0F0F5', marginBottom: '0.5rem', fontSize: '1.5rem' }}>No bookings yet</h2>
-              <p style={{ color: '#9898B0', marginBottom: '2rem' }}>You don't have any {filter.toLowerCase()} bookings at the moment.</p>
-              <Link to="/">
-                <button style={{ padding: '0.85rem 1.5rem', background: 'linear-gradient(135deg,#00FF87,#00cc6a)', border: 'none', color: '#0A0A0F', fontWeight: 700, borderRadius: '999px', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
-                  Book your first slot!
+              <div style={{ color: 'var(--text-muted)' }}>
+                <LuCalendar size={48} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h2 style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: 600, margin: '0 0 4px 0' }}>
+                  No Bookings Found
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                  You don't have any bookings matching this filter.
+                </p>
+              </div>
+              <Link to="/" style={{ textDecoration: 'none' }}>
+                <button className="btn-primary">
+                  Book a Slot
                 </button>
               </Link>
             </motion.div>
@@ -273,96 +339,124 @@ const MyBookingsPage = () => {
       {/* QR Modal */}
       <AnimatePresence>
         {qrModal.isOpen && qrModal.booking && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(10,10,15,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
-            onClick={() => setQrModal({ isOpen: false, booking: null })}
-          >
+          <div className="modal-overlay" onClick={() => setQrModal({ isOpen: false, booking: null })}>
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              style={{ background: '#13131A', border: '1px solid rgba(0,255,135,0.2)', borderRadius: '1.5rem', padding: '2.5rem 2rem', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}
+              className="modal-content"
+              style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '16px' }}
             >
-              <h2 style={{ color: '#F0F0F5', margin: '0 0 0.5rem 0' }}>Court Entrance QR</h2>
-              <p style={{ color: '#9898B0', fontSize: '0.9rem', marginBottom: '2rem' }}>Show this at the reception</p>
-              
-              <div style={{ background: '#fff', padding: '1rem', borderRadius: '1rem', display: 'inline-block', marginBottom: '1.5rem' }}>
-                {qrModal.booking.qrCode ? (
-                  <img src={qrModal.booking.qrCode} alt="QR Code" style={{ width: '200px', height: '200px', display: 'block' }} />
-                ) : (
-                  <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', background: '#eee' }}>No QR Generated</div>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Court Entrance QR</span>
+                <button 
+                  onClick={() => setQrModal({ isOpen: false, booking: null })}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                >
+                  <LuX size={18} />
+                </button>
               </div>
-              
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.5rem', textAlign: 'left' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ color: '#9898B0', fontSize: '0.85rem' }}>Ref ID</span>
-                  <span style={{ color: '#F0F0F5', fontSize: '0.85rem', fontFamily: 'monospace' }}>{qrModal.booking.bookingReference || qrModal.booking._id.slice(-8).toUpperCase()}</span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  backgroundColor: '#FFFFFF', 
+                  padding: '12px', 
+                  borderRadius: '12px', 
+                  display: 'inline-flex',
+                  boxShadow: 'var(--shadow)'
+                }}>
+                  {qrModal.booking.qrCode ? (
+                    <img src={qrModal.booking.qrCode} alt="QR Code" style={{ width: '200px', height: '200px', display: 'block' }} />
+                  ) : (
+                    <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      QR Code Not Generated
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#9898B0', fontSize: '0.85rem' }}>Time</span>
-                  <span style={{ color: '#F0F0F5', fontSize: '0.85rem' }}>{formatHour(qrModal.booking.startTime)} - {formatHour(qrModal.booking.endTime)}</span>
+                <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 500 }}>
+                  Show this QR code at the reception desk
+                </span>
+              </div>
+
+              <div style={{ 
+                backgroundColor: 'var(--bg-elevated)', 
+                border: '1px solid var(--border)', 
+                borderRadius: '8px', 
+                padding: '12px', 
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                textAlign: 'left'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Reference</span>
+                  <span className="mono-chip" style={{ fontSize: '11px', padding: '1px 5px' }}>{qrModal.booking.bookingReference || qrModal.booking._id.slice(-8).toUpperCase()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Court Time</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{formatHourLabel(qrModal.booking.startTime)} &ndash; {formatHourLabel(qrModal.booking.endTime)}</span>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                <button onClick={() => handleDownloadQR(qrModal.booking.qrCode, qrModal.booking.bookingReference || qrModal.booking._id.slice(-8))} style={{ width: '100%', padding: '0.85rem', background: 'linear-gradient(135deg,#00FF87,#00cc6a)', border: 'none', borderRadius: '0.75rem', color: '#0A0A0F', fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
-                  Download QR
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px' }}>
+                <button 
+                  onClick={() => handleDownloadQR(qrModal.booking.qrCode, qrModal.booking.bookingReference || qrModal.booking._id.slice(-8))} 
+                  className="btn-primary"
+                  style={{ gap: '6px' }}
+                >
+                  <LuDownload size={14} />
+                  Download
                 </button>
-                <button onClick={() => setQrModal({ isOpen: false, booking: null })} style={{ width: '100%', padding: '0.85rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', color: '#F0F0F5', fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
+                <button onClick={() => setQrModal({ isOpen: false, booking: null })} className="btn-secondary">
                   Close
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
       {/* Cancel Confirmation Modal */}
       <AnimatePresence>
         {cancelModal.isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(10,10,15,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
-          >
+          <div className="modal-overlay" onClick={() => setCancelModal({ isOpen: false, bookingId: null })}>
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              style={{ background: '#13131A', border: '1px solid rgba(255,80,80,0.3)', borderRadius: '1.5rem', padding: '2.5rem 2rem', maxWidth: '360px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              className="modal-content"
+              style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '16px' }}
             >
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-              <h2 style={{ color: '#F0F0F5', margin: '0 0 0.5rem 0', fontSize: '1.5rem' }}>Cancel Booking?</h2>
-              <p style={{ color: '#9898B0', fontSize: '0.9rem', marginBottom: '2rem', lineHeight: 1.5 }}>
-                Are you sure you want to cancel this booking? Since it is more than 4 hours away, you will receive a <strong style={{ color: '#FF5050' }}>70% refund</strong>.
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', color: 'var(--danger)', marginTop: '8px' }}>
+                <LuTriangleAlert size={40} />
+              </div>
               
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                <button onClick={handleCancelConfirm} style={{ width: '100%', padding: '0.85rem', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: '0.75rem', color: '#FF5050', fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
-                  Yes, Cancel Booking
+              <div>
+                <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+                  Cancel Booking?
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.5', margin: 0 }}>
+                  Are you sure you want to cancel this booking? If the reservation is more than 4 hours away, you will receive a 70% refund.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px' }}>
+                <button onClick={handleCancelConfirm} className="btn-destructive">
+                  Yes, Cancel
                 </button>
-                <button onClick={() => setCancelModal({ isOpen: false, bookingId: null })} style={{ width: '100%', padding: '0.85rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', color: '#F0F0F5', fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
+                <button onClick={() => setCancelModal({ isOpen: false, bookingId: null })} className="btn-secondary">
                   No, Keep it
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 200, 0, 0.7); }
-          70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 200, 0, 0); }
-          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 200, 0, 0); }
-        }
-      `}</style>
-    </div>
+    </motion.div>
   );
 };
 
