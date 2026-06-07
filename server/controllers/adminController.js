@@ -1,6 +1,7 @@
 import Booking from '../models/Booking.js';
 import User from '../models/User.js';
-import QRCode from 'qrcode';
+import { generateBookingQR } from '../utils/generateQR.js';
+import { sendSMS } from '../utils/sms.js';
 
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
@@ -63,7 +64,7 @@ export const getAllBookings = async (req, res) => {
 export const confirmPayment = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
-      .populate('user', 'name')
+      .populate('user', 'name phone')
       .populate('sport', 'name');
 
     if (!booking) {
@@ -84,41 +85,41 @@ export const confirmPayment = async (req, res) => {
       booking.bookingReference = ref;
     }
 
-    booking.status = 'confirmed';
+    booking.status        = 'confirmed';
     booking.paymentStatus = 'paid';
+    booking.confirmedAt   = new Date();
 
-    // Generate QR Code
-    const qrPayload = JSON.stringify({
-      bookingRef: booking.bookingReference,
-      sport: booking.sport?.name || 'Unknown',
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      userName: booking.user?.name || 'Unknown User'
-    });
-
-    const qrBase64 = await QRCode.toDataURL(qrPayload, {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      width: 300,
-      color: {
-        dark: '#0A0A0F',
-        light: '#FFFFFF'
-      }
-    });
-
-    booking.qrCode = qrBase64;
+    // Generate QR Code using shared utility
+    const { qrBase64, qrPayload } = await generateBookingQR(
+      booking,
+      booking.user,
+      booking.sport
+    );
+    booking.qrCode    = qrBase64;
+    booking.qrPayload = qrPayload;
 
     const updatedBooking = await booking.save();
 
-    // Emit live slot_update for clients
+    // Send SMS notification
+    if (updatedBooking.user && updatedBooking.user.phone) {
+      const confirmSMS = `Booking ${updatedBooking.bookingReference} confirmed! Show QR at court entrance.`;
+      sendSMS(updatedBooking.user.phone, confirmSMS).catch((err) => {
+        console.error('[SMS Error] Failed to send payment confirmation SMS:', err);
+      });
+    }
+
+    // Emit socket events
     if (req.app.get('io')) {
+      req.app.get('io').emit('booking_confirmed', {
+        bookingId:  updatedBooking._id.toString(),
+        bookingRef: updatedBooking.bookingReference,
+      });
       req.app.get('io').emit('slot_update', {
-        sportId: updatedBooking.sport._id.toString(),
-        date: updatedBooking.date,
+        sportId:   updatedBooking.sport._id.toString(),
+        date:      updatedBooking.date,
         startTime: updatedBooking.startTime,
-        endTime: updatedBooking.endTime,
-        status: 'booked',
+        endTime:   updatedBooking.endTime,
+        status:    'confirmed',
       });
     }
 
@@ -134,7 +135,7 @@ export const confirmPayment = async (req, res) => {
 // @access  Private/Admin
 export const adminCancelBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id).populate('sport', 'name');
+    const booking = await Booking.findById(req.params.id).populate('sport', 'name').populate('user');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
@@ -151,6 +152,14 @@ export const adminCancelBooking = async (req, res) => {
     booking.cancelledAt = new Date();
 
     const updatedBooking = await booking.save();
+
+    // Send SMS notification
+    if (updatedBooking.user && updatedBooking.user.phone) {
+      const cancelSMS = `Booking ${updatedBooking.bookingReference || updatedBooking._id.slice(-8).toUpperCase()} cancelled. Refund will be processed in 3-5 days.`;
+      sendSMS(updatedBooking.user.phone, cancelSMS).catch((err) => {
+        console.error('[SMS Error] Failed to send admin cancellation SMS:', err);
+      });
+    }
 
     // Emit slot_update event to mark slot as available
     if (req.app.get('io')) {
@@ -291,6 +300,36 @@ export const blockTimeSlot = async (req, res) => {
     res.status(201).json(createdBooking);
   } catch (error) {
     console.error('Error blocking time slot:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Mark booking as checked-in at court
+// @route   PATCH /api/admin/bookings/:id/checkin
+// @access  Private/Admin
+export const checkinBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'confirmed') {
+      return res.status(400).json({ message: 'Only confirmed bookings can be checked in' });
+    }
+
+    if (booking.checkedIn) {
+      return res.status(400).json({ message: 'Booking is already checked in' });
+    }
+
+    booking.checkedIn   = true;
+    booking.checkedInAt = new Date();
+    await booking.save();
+
+    res.json({ message: 'Checked in successfully', checkedIn: true, checkedInAt: booking.checkedInAt });
+  } catch (error) {
+    console.error('Error checking in booking:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };

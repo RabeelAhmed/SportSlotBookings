@@ -1,5 +1,16 @@
 import Booking from '../models/Booking.js';
+import Sport from '../models/Sport.js';
 import { calculatePrice, generateBookingReference } from '../utils/helpers.js';
+import { generateBookingQR } from '../utils/generateQR.js';
+import { sendSMS } from '../utils/sms.js';
+
+const formatHourLabel = (hour) => {
+  const h = hour >= 24 ? hour - 24 : hour;
+  if (h === 0) return '12:00 AM';
+  if (h < 12) return `${h}:00 AM`;
+  if (h === 12) return '12:00 PM';
+  return `${h - 12}:00 PM`;
+};
 
 // @desc    Get slot availability
 // @route   GET /api/bookings/availability?sportId=xxx&date=YYYY-MM-DD
@@ -149,6 +160,8 @@ export const createBooking = async (req, res) => {
     // Calculate price
     const totalPrice = calculatePrice(startTime, endTime);
 
+    const isWalletPayment = (paymentMethod === 'easypaisa' || paymentMethod === 'jazzcash') && req.body.walletNumber;
+
     const booking = new Booking({
       user: req.user._id,
       sport: sportId,
@@ -157,7 +170,8 @@ export const createBooking = async (req, res) => {
       endTime,
       durationHours,
       totalPrice,
-      status: 'pending_payment',
+      status: isWalletPayment ? 'confirmed' : 'pending_payment',
+      paymentStatus: isWalletPayment ? 'paid' : 'unpaid',
       paymentMethod
     });
 
@@ -167,16 +181,59 @@ export const createBooking = async (req, res) => {
     // 10 minute payment timeout
     booking.expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Fetch sport details to build the SMS message and QR code
+    const sportObj = await Sport.findById(sportId);
+    if (!sportObj) {
+      return res.status(404).json({ message: 'Sport not found' });
+    }
+
+    if (isWalletPayment) {
+      booking.confirmedAt = new Date();
+      // Generate QR Code using shared utility
+      const { qrBase64, qrPayload } = await generateBookingQR(
+        booking,
+        req.user,
+        sportObj
+      );
+      booking.qrCode    = qrBase64;
+      booking.qrPayload = qrPayload;
+    }
+
     const createdBooking = await booking.save();
 
-    // Emit live slot_update for clients
-    req.app.get('io').emit('slot_update', {
-      sportId: createdBooking.sport.toString(),
-      date: createdBooking.date,
-      startTime: createdBooking.startTime,
-      endTime: createdBooking.endTime,
-      status: 'pending',
-    });
+    const sportName = sportObj.name;
+    const timeRange = `${formatHourLabel(startTime)} - ${formatHourLabel(endTime)}`;
+    
+    let smsMessage;
+    if (isWalletPayment) {
+      smsMessage = `Your SportSlot booking ${createdBooking.bookingReference} for ${sportName} on ${date} at ${timeRange} is confirmed. Show QR at court entrance.`;
+    } else {
+      smsMessage = `Your SportSlot booking ${createdBooking.bookingReference} for ${sportName} on ${date} at ${timeRange} is pending payment.`;
+    }
+
+    if (req.user && req.user.phone) {
+      sendSMS(req.user.phone, smsMessage).catch((err) => {
+        console.error('[SMS Error] Failed to send booking pending SMS:', err);
+      });
+    }
+
+    // Emit live slot_update and booking_confirmed for clients
+    const io = req.app.get('io');
+    if (io) {
+      if (isWalletPayment) {
+        io.emit('booking_confirmed', {
+          bookingId:  createdBooking._id.toString(),
+          bookingRef: createdBooking.bookingReference,
+        });
+      }
+      io.emit('slot_update', {
+        sportId: createdBooking.sport.toString(),
+        date: createdBooking.date,
+        startTime: createdBooking.startTime,
+        endTime: createdBooking.endTime,
+        status: isWalletPayment ? 'confirmed' : 'pending',
+      });
+    }
 
     res.status(201).json(createdBooking);
 
@@ -191,14 +248,14 @@ export const createBooking = async (req, res) => {
 // @access  Private
 export const cancelBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id).populate('user').populate('sport');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
     // Check if user owns the booking or is admin
-    if (req.user.role !== 'admin' && (!booking.user || booking.user.toString() !== req.user._id.toString())) {
+    if (req.user.role !== 'admin' && (!booking.user || booking.user._id.toString() !== req.user._id.toString())) {
       return res.status(403).json({ message: 'Not authorized to cancel this booking' });
     }
 
@@ -221,9 +278,17 @@ export const cancelBooking = async (req, res) => {
 
     const updatedBooking = await booking.save();
 
+    // Send SMS notification
+    if (updatedBooking.user && updatedBooking.user.phone) {
+      const cancelSMS = `Booking ${updatedBooking.bookingReference || updatedBooking._id.slice(-8).toUpperCase()} cancelled. Refund will be processed in 3-5 days.`;
+      sendSMS(updatedBooking.user.phone, cancelSMS).catch((err) => {
+        console.error('[SMS Error] Failed to send user cancellation SMS:', err);
+      });
+    }
+
     // Emit slot_update event to mark slot as available
     req.app.get('io').emit('slot_update', {
-      sportId: updatedBooking.sport.toString(),
+      sportId: updatedBooking.sport._id.toString(),
       date: updatedBooking.date,
       startTime: updatedBooking.startTime,
       endTime: updatedBooking.endTime,
@@ -234,6 +299,46 @@ export const cancelBooking = async (req, res) => {
 
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Public check-in lookup by booking reference (for QR scan landing page)
+// @route   GET /api/bookings/checkin/:bookingRef
+// @access  Public
+export const getCheckinByRef = async (req, res) => {
+  try {
+    const booking = await Booking.findOne({ bookingReference: req.params.bookingRef })
+      .populate('user', 'name phone')
+      .populate('sport', 'name');
+
+    if (!booking) {
+      return res.status(404).json({ found: false, message: 'No booking found for this reference' });
+    }
+
+    // Mask phone: show first 4 and last 4, *** in middle
+    const rawPhone = booking.user?.phone || '';
+    const maskedPhone = rawPhone.length >= 8
+      ? rawPhone.slice(0, 4) + '***' + rawPhone.slice(-4)
+      : rawPhone;
+
+    res.json({
+      found:            true,
+      bookingReference: booking.bookingReference,
+      status:           booking.status,
+      sport:            { name: booking.sport?.name },
+      date:             booking.date,
+      startTime:        booking.startTime,
+      endTime:          booking.endTime,
+      durationHours:    booking.durationHours,
+      totalPrice:       booking.totalPrice,
+      userName:         booking.user?.name,
+      userPhone:        maskedPhone,
+      confirmedAt:      booking.confirmedAt,
+      paymentMethod:    booking.paymentMethod,
+    });
+  } catch (error) {
+    console.error('[getCheckinByRef] error:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };

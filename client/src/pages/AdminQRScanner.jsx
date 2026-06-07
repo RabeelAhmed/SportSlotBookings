@@ -24,6 +24,8 @@ const AdminQRScanner = () => {
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
 
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
@@ -115,13 +117,14 @@ const AdminQRScanner = () => {
         return;
       }
 
-      const { bookingRef } = qrData;
+      // Support both new format (ref) and old format (bookingRef)
+      const bookingRef = qrData.ref || qrData.bookingRef;
       if (!bookingRef) {
         setResult({
           status: 'red',
           title: 'Invalid QR Code',
           message: 'The scanned code does not contain a booking reference.',
-          detail: 'Missing bookingRef field.'
+          detail: 'Missing ref field.'
         });
         setVerifying(false);
         return;
@@ -196,6 +199,7 @@ const AdminQRScanner = () => {
   const handleScanAgain = () => {
     setResult(null);
     setCameraError(null);
+    setCheckedIn(false);
     setScanning(true);
   };
 
@@ -206,8 +210,6 @@ const AdminQRScanner = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Payment confirmed & ticket updated.');
-      
-      // Refresh verification result to show valid green card
       setResult({
         status: 'green',
         title: 'Booking Verified',
@@ -217,6 +219,21 @@ const AdminQRScanner = () => {
       toast.error(err.response?.data?.message || 'Failed to confirm payment.');
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleCheckin = async (id) => {
+    setCheckingIn(true);
+    try {
+      await axios.patch(`/api/admin/bookings/${id}/checkin`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Guest checked in successfully!');
+      setCheckedIn(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to check in.');
+    } finally {
+      setCheckingIn(false);
     }
   };
 
@@ -337,6 +354,10 @@ const AdminQRScanner = () => {
                               <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{result.booking.user?.name || 'Unknown User'}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Phone:</span>
+                              <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{result.booking.user?.phone || '—'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: 'var(--text-muted)' }}>Sport:</span>
                               <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{result.booking.sport?.name}</span>
                             </div>
@@ -355,6 +376,37 @@ const AdminQRScanner = () => {
                               <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{result.booking.bookingReference}</span>
                             </div>
                           </div>
+
+                          {/* Mark as Checked In button */}
+                          <button
+                            onClick={() => !checkedIn && handleCheckin(result.booking._id)}
+                            disabled={checkedIn || checkingIn}
+                            style={{
+                              alignSelf: 'stretch',
+                              height: '36px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: checkedIn ? 'default' : 'pointer',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s',
+                              background: checkedIn ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.2)',
+                              color: '#10B981',
+                              opacity: checkingIn ? 0.7 : 1,
+                            }}
+                          >
+                            {checkingIn ? (
+                              <><span className="spinner" style={{ width: '14px', height: '14px', borderColor: '#10B981', borderTopColor: 'transparent' }} /><span>Checking in...</span></>
+                            ) : checkedIn ? (
+                              '✓ Checked In'
+                            ) : (
+                              'Mark as Checked In'
+                            )}
+                          </button>
                         </div>
                       </div>
                     )}
@@ -426,7 +478,7 @@ const AdminQRScanner = () => {
                         gap: '16px'
                       }}>
                         <div style={{ color: 'var(--danger)' }}>
-                          <LuXCircle size={28} />
+                          <LuCircleX size={28} />
                         </div>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           <div>

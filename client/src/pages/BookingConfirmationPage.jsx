@@ -10,7 +10,7 @@ const getPaymentMethodLabel = (method) => {
   switch (method) {
     case 'jazzcash': return 'JazzCash';
     case 'easypaisa': return 'Easypaisa';
-    case 'bank_transfer': return 'Bank Transfer';
+    case 'stripe_card': return 'Card (Stripe)';
     default: return method || '';
   }
 };
@@ -19,6 +19,8 @@ const BookingConfirmationPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const { token, isAuthenticated } = useContext(AuthContext);
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
+  const paymentCancelled = searchParams.get('payment') === 'cancelled';
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -168,8 +170,13 @@ const BookingConfirmationPage = () => {
       }}
     >
       <div style={{ maxWidth: '480px', width: '100%', marginTop: '56px' }}>
-        
-        {/* State 1: Payment Pending */}
+
+        {/* Stripe payment cancelled banner */}
+        {paymentCancelled && (
+          <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: '8px', background: 'var(--warning-muted)', border: '1px solid var(--warning)', fontSize: '13px', color: 'var(--warning)', lineHeight: 1.5 }}>
+            <strong>Payment was cancelled.</strong> Your booking slot is still reserved. You can try paying again from this page or choose a different payment method.
+          </div>
+        )}
         {booking.status === 'pending_payment' && (
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
             
