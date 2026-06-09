@@ -1,0 +1,69 @@
+version: '3.9'
+
+services:
+
+  mongo:
+    image: mongo:7.0
+    container_name: sportslot_mongo_prod
+    restart: always
+    volumes:
+      - mongo_data_prod:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
+      MONGO_INITDB_DATABASE: sportslot
+    networks:
+      - sportslot_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.prod
+    container_name: sportslot_server_prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongo:27017/sportslot?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      CLIENT_URL: ${CLIENT_URL}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - sportslot_network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${CLIENT_URL}/api
+        VITE_SOCKET_URL: ${CLIENT_URL}
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
+    container_name: sportslot_client_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - server
+    networks:
+      - sportslot_network
+
+volumes:
+  mongo_data_prod:
+    driver: local
+
+networks:
+  sportslot_network:
+    driver: bridge

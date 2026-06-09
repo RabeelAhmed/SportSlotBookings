@@ -34,3 +34,15 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Docker environment files
+.env
+.env.docker
+.env.production
+.env.local
+
+# Docker volumes (if mapped locally)
+mongo-data/
+
+# OS
+Thumbs.db

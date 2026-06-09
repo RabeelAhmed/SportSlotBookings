@@ -1,0 +1,14 @@
+{
+  "name": "sportslot",
+  "version": "1.0.0",
+  "scripts": {
+    "dev":         "docker compose up --build",
+    "dev:down":    "docker compose down",
+    "dev:logs":    "docker compose logs -f",
+    "dev:reset":   "docker compose down -v && docker compose up --build",
+    "prod":        "docker compose -f docker-compose.prod.yml up --build -d",
+    "prod:down":   "docker compose -f docker-compose.prod.yml down",
+    "prod:logs":   "docker compose -f docker-compose.prod.yml logs -f",
+    "mongo:shell": "docker exec -it sportslot_mongo mongosh -u ${MONGO_ROOT_USER} -p ${MONGO_ROOT_PASS} --authenticationDatabase admin"
+  }
+}

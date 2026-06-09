@@ -1,3 +1,5 @@
+// Local dev: run `stripe listen --forward-to localhost:5000/api/payments/webhook`
+// to receive Stripe webhook events. Update STRIPE_WEBHOOK_SECRET in .env.
 import express from 'express';
 import { createCheckoutSession, stripeWebhook, getPaymentStatus } from '../controllers/paymentController.js';
 import { protect } from '../middleware/auth.js';
