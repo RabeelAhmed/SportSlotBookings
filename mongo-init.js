@@ -9,14 +9,14 @@ db.sports.insertMany([
   {
     name: 'Cricket',
     description: 'Book the cricket court for practice or matches.',
-    image: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format',
+    image: 'https://i.pinimg.com/736x/42/4a/17/424a17359ec7bbbd0925f13b6f52a045.jpg',
     isActive: true,
     createdAt: new Date()
   },
   {
     name: 'Football',
     description: 'Book the football pitch for training or friendly games.',
-    image: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800&auto=format',
+    image: 'https://i.pinimg.com/736x/68/4f/54/684f54fe669f24f6f81406ef38376fc5.jpg',
     isActive: true,
     createdAt: new Date()
   }
